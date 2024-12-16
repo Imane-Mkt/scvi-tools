@@ -45,6 +45,8 @@ class RNADeconv(BaseModuleClass):
         else:
             ct_weight = torch.ones((self.n_labels,), dtype=torch.float32)
         self.register_buffer("ct_weight", ct_weight)
+        self.batch_effects = torch.nn.Parameter(torch.randn(self.n_genes))  # Trainable batch effect parameters
+
 
     @torch.inference_mode()
     def get_params(self) -> tuple[np.ndarray]:
@@ -55,6 +57,14 @@ class RNADeconv(BaseModuleClass):
         type
             list of tensor
         """
+        W_positive = torch.nn.functional.softplus(self.W)
+
+        # Compute the mean of batch corrections (e^w)
+        batch_corrections = torch.exp(self.batch_effects)  # e^w
+        batch_effects_mean = torch.mean(batch_corrections, dim=0)  # Average across batches
+
+        # Calculate µ′ as µ / mean(batch effects)
+        W_corrected = W_positive / batch_effects_mean
         return self.W.cpu().numpy(), self.px_o.cpu().numpy()
 
     def _get_inference_input(self, tensors):
@@ -65,7 +75,9 @@ class RNADeconv(BaseModuleClass):
         x = tensors[REGISTRY_KEYS.X_KEY]
         y = tensors[REGISTRY_KEYS.LABELS_KEY]
 
-        input_dict = {"x": x, "y": y}
+        batch = tensors[REGISTRY_KEYS.BATCH_KEY]  
+        input_dict = {"x": x, "y": y, "batch": batch}  
+
         return input_dict
 
     @auto_move_data
@@ -78,7 +90,10 @@ class RNADeconv(BaseModuleClass):
         """Simply build the negative binomial parameters for every cell in the minibatch."""
         px_scale = torch.nn.functional.softplus(self.W)[:, y.long().ravel()].T  # cells per gene
         library = torch.sum(x, dim=1, keepdim=True)
-        px_rate = library * px_scale
+        batch_effects = torch.exp(self.batch_effects[batch.long()])  # Trainable batch-specific corrections
+        px_scale = px_scale * batch_effects  
+
+        px_rate = library * px_scale  
         scaling_factor = self.ct_weight[y.long().ravel()]
 
         return {
@@ -104,7 +119,10 @@ class RNADeconv(BaseModuleClass):
 
         reconst_loss = -NegativeBinomial(px_rate, logits=px_o).log_prob(x).sum(-1)
         loss = torch.sum(scaling_factor * reconst_loss)
+        batch_effect_penalty = torch.sum(torch.square(self.batch_effects))  # ||w||^2 regularization
 
+        # Combine reconstruction loss and regularization
+        loss = loss + kl_weight * batch_effect_penalty
         return LossOutput(loss=loss, reconstruction_loss=reconst_loss)
 
     @torch.inference_mode()
