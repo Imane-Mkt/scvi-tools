@@ -57,6 +57,9 @@ class RNADeconv(BaseModuleClass):
         type
             list of tensor
         """
+
+        #for debugging
+        print("Custom get_params is being used")
         W_positive = torch.nn.functional.softplus(self.W)
 
         # Compute the mean of batch corrections (e^w)
