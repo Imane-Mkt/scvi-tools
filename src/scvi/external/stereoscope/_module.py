@@ -81,7 +81,7 @@ class RNADeconv(BaseModuleClass):
         batch = tensors[REGISTRY_KEYS.BATCH_KEY]  
         if batch is None:
             raise KeyError(f"Batch key {REGISTRY_KEYS.BATCH_KEY} is missing.")
-        input_dict = {"x": x, "y": y, "batch": batch}  
+        input_dict = {"x": x, "y": y, "dataloaded": batch}  
 
         return input_dict
 
