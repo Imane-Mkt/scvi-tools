@@ -77,10 +77,7 @@ class RNADeconv(BaseModuleClass):
     def _get_generative_input(self, tensors, inference_outputs):
         x = tensors[REGISTRY_KEYS.X_KEY]
         y = tensors[REGISTRY_KEYS.LABELS_KEY]
-
-        batch = tensors[REGISTRY_KEYS.BATCH_KEY]  
-        if batch is None:
-            raise KeyError(f"Batch key {REGISTRY_KEYS.BATCH_KEY} is missing.")
+        batch = tensors.get(REGISTRY_KEYS.BATCH_KEY, None)
         input_dict = {"x": x, "y": y, "dataloaded": batch}  
 
         return input_dict
