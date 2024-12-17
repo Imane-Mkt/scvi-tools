@@ -142,6 +142,7 @@ class RNAStereoscope(UnsupervisedTrainingMixin, BaseModelClass):
         adata: AnnData,
         labels_key: str | None = None,
         layer: str | None = None,
+        batch_key: str | None = None,
         **kwargs,
     ):
         """%(summary)s.
